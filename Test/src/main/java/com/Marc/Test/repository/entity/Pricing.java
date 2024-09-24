@@ -16,6 +16,13 @@ public class Pricing {
     Pricing()
     {}
 
+    public Pricing(Pricing other)
+    {
+        symbol = other.symbol;
+        askPrice = other.askPrice;
+        bidPrice = other.bidPrice;
+    }
+
     public Pricing(String otherSymbol, Double otherAskPrice, Double otherBidPrice)
     {
         symbol = otherSymbol;

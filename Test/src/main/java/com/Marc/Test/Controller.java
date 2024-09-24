@@ -1,53 +1,37 @@
 package com.Marc.Test;
 
+import com.Marc.Test.repository.BalanceRepository;
+import com.Marc.Test.repository.HistoryRepository;
 import com.Marc.Test.repository.PricingRepository;
-import com.Marc.Test.repository.entity.Binance;
-import com.Marc.Test.repository.entity.Huobi;
-import com.Marc.Test.repository.entity.Pricing;
+import com.Marc.Test.repository.entity.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.ArrayList;
 import java.util.List;
 
 @RestController
 public class Controller {
     @Autowired
     PricingRepository pricingRepository;
+
+    @Autowired
+    BalanceRepository balanceRepository;
+
+    @Autowired
+    HistoryRepository historyRepository;
+
+    @Autowired
+    Methods methods;
+
     @Autowired
     Price price;
-    @GetMapping("/refresh")
-    void refreshPrice()
+
+    public void refreshPrice()
     {
-        pricingRepository.deleteAll();
-        List<Binance> binanceList = price.Binance();
-        List<Huobi> huobiList = price.Huobi();
-
-        //check for overlaps to compare and take the better price
-        for (Binance binance : binanceList)
-        {
-            for (Huobi huobi : huobiList)
-            {
-                if (binance.getSymbol().equalsIgnoreCase(huobi.getSymbol()))
-                {
-                    Pricing pricing = new Pricing(binance.getSymbol().toUpperCase(),
-                            binance.getAskPrice() < huobi.getAsk() ? binance.getAskPrice() : huobi.getAsk(),
-                            binance.getBidPrice() > huobi.getBid() ? binance.getBidPrice() : huobi.getBid());
-                    pricingRepository.save(pricing);
-                    break;
-                }
-            }
-        }
-
-        //add the rest of the lists from both skipping the already matched symbols since they are primary keys
-        for (Binance binance : binanceList)
-        {
-            pricingRepository.save(new Pricing(binance.getSymbol().toUpperCase(), binance.getAskPrice(), binance.getBidPrice()));
-        }
-
-        for (Huobi huobi : huobiList)
-        {
-            pricingRepository.save(new Pricing(huobi.getSymbol().toUpperCase(), huobi.getAsk(), huobi.getBid()));
-        }
+        methods.refreshPrice(pricingRepository, price);
     }
 
     @GetMapping("/price")
@@ -56,24 +40,45 @@ public class Controller {
         return pricingRepository.findAll();
     }
 
-    @GetMapping("/trade")
-    List<Object> bestTrade()
+    @GetMapping("/price/{symbol}")
+    Object bestPriceBySymbol(@PathVariable String symbol)
     {
-        System.out.println("Best price.");
-        return null;
+        String caps = symbol.toUpperCase();
+        return pricingRepository.findById(caps).isPresent() ? pricingRepository.findById(caps) : "Cannot find information on this symbol.";
+    }
+
+    @GetMapping("/trade/{mySymbol}/{otherSymbol}/{buySell}/{quantity}")
+    String bestTrade(@PathVariable String mySymbol, @PathVariable String otherSymbol,
+                     @PathVariable String buySell, @PathVariable String quantity)
+    {
+        mySymbol = mySymbol.toUpperCase();
+        otherSymbol = otherSymbol.toUpperCase();
+        buySell = buySell.toUpperCase();
+
+        String ret = methods.validateParameters(mySymbol, otherSymbol, buySell, quantity, pricingRepository);
+
+        if (!ret.isEmpty())
+        {
+            return ret;
+        }
+
+        Pricing pricing = methods.findPricing(mySymbol, otherSymbol, pricingRepository);
+        Double value = Double.parseDouble(quantity);
+        ret = methods.tradeOperation(mySymbol, otherSymbol, buySell,
+                value, pricing, balanceRepository, historyRepository);
+
+        return ret;
     }
 
     @GetMapping("/balance")
-    List<Object> cryptoBalance()
+    List<Balance> cryptoBalance()
     {
-        System.out.println("Best price.");
-        return null;
+        return balanceRepository.findAll();
     }
 
     @GetMapping("/history")
-    List<Object> tradingHistory()
+    List<History> tradingHistory()
     {
-        System.out.println("Best price.");
-        return null;
+        return historyRepository.findAll();
     }
 }
